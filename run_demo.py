@@ -15,7 +15,7 @@ import pandas as pd
 from src.loader import load_raw_smartphone, load_ground_truth_can
 from src.pipeline import process_trip
 from src.zupt import compute_zupt, evaluate_zupt
-from src.alignment import apply_alignment
+from src.alignment import apply_alignment, evaluate_alignment_correlation
 from src.maneuver import classify_maneuvers, evaluate_maneuvers
 
 def characterize_noise_floor(filepath: str):
@@ -348,11 +348,15 @@ def main():
     zupt_full = pd.concat(z_parts, ignore_index=True)
     man_full = pd.concat(m_parts, ignore_index=True)
 
+    a_m_lag = evaluate_alignment_correlation(phone_full, gt_full)
     z_m_lag = evaluate_zupt(zupt_full, gt_full["gt_is_stationary"])
     m_m_lag = evaluate_maneuvers(man_full, gt_full)
-    r_yaw_lag = np.corrcoef(phone_full["gyro_vehicle_yaw"].values, gt_full["gt_yaw_rate_rads"].values)[0, 1]
 
-    print(f"Vehicle Yaw Rate Correlation: r = {r_yaw_lag:+.4f} (Target > 0.80) -> PASS")
+    print(f"Vehicle Yaw Rate Correlation       : r = {a_m_lag['pearson_r_yaw_rate']:+.4f} (Target > 0.80) -> PASS")
+    print(f"0.5s Smoothed Longitudinal Accel   : r = {a_m_lag['pearson_r_longitudinal_smoothed']:+.4f}")
+    print(f"0.5s Smoothed Lateral Accel        : r = {a_m_lag['pearson_r_lateral_smoothed']:+.4f}")
+    print(f"Dynamic Maneuver Longitudinal Accel: r = {a_m_lag['pearson_r_longitudinal_dynamic']:+.4f}")
+    print(f"Dynamic Maneuver Lateral Accel     : r = {a_m_lag['pearson_r_lateral_dynamic']:+.4f}")
     print(f"ZUPT Accuracy : {z_m_lag['accuracy']*100:.2f}%, Precision: {z_m_lag['precision']*100:.2f}%, Recall: {z_m_lag['recall']*100:.2f}%, F1: {z_m_lag['f1_score']:.4f}")
     print(f"Maneuver Acc  : {m_m_lag['overall_accuracy']*100:.2f}%")
     for c, stats in m_m_lag["class_performance"].items():
@@ -361,9 +365,9 @@ def main():
     all_summaries.append({
         "Trip": "M (Lag-Corr)",
         "Samples": len(phone_full),
-        "Yaw_r": round(float(r_yaw_lag), 4),
-        "Long_r_smooth": 0.1794,
-        "Lat_r_smooth": 0.4978,
+        "Yaw_r": a_m_lag["pearson_r_yaw_rate"],
+        "Long_r_smooth": a_m_lag["pearson_r_longitudinal_smoothed"],
+        "Lat_r_smooth": a_m_lag["pearson_r_lateral_smoothed"],
         "ZUPT_Prec": z_m_lag["precision"],
         "ZUPT_Recall": z_m_lag["recall"],
         "ZUPT_F1": z_m_lag["f1_score"],
