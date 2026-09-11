@@ -122,27 +122,39 @@ Standardized CSV files are generated into `output/` for downstream integration:
 
 ---
 
-## 5. Multi-Trip Benchmark Summary Table
+## 5. Multi-Trip Benchmark Summary Tables
 
 Validated against synchronized CAN-bus ground truth across **194,903 samples (5.4 hours)** of real-world driving:
 
+### Table 5.1: Real-Time Pipeline Benchmarks (Zero-Lag Online Streaming)
+*Evaluates the pipeline as executed live in real time with zero lookahead or external synchronization knowledge:*
 | Trip | Description | Samples | Duration | Yaw $r$ | Long Accel $r$ (smooth) | Lat Accel $r$ (smooth) | ZUPT Prec. | ZUPT Recall | ZUPT F1 | Maneuver Acc. | Straight F1 | Gentle Curve F1 | Sharp Turn F1 |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **S1** | Driver A (City + Highway) | 51,746 | 86.2 min | **+0.9348** | **+0.5436** | **+0.4854** | **90.93%** | 71.50% | **0.8005** | **64.02%** | **0.6536** | **0.4702** | **0.7429** |
-| **S3c** | Driver A (Roundabouts + Turns) | 37,183 | 62.0 min | **+0.9490** | +0.0140 | +0.0940 | **60.89%** | **92.37%** | **0.7340** | **72.03%** | **0.7993** | **0.4781** | **0.7540** |
-| **M** | Driver B (Urban, Uncorrected) | 105,974 | 176.6 min | **+0.6363** | +0.1794 | **+0.4978** | **76.65%** | 63.28% | **0.6933** | **59.16%** | **0.6746** | **0.3522** | **0.6038** |
-| **M (Lag-Corr)** | Driver B (Fair Physical Ground Truth) | 105,912 | 176.6 min | **+0.8812** | **+0.3901** | **+0.7233** | **83.48%** | 68.77% | **0.7541** | **70.64%** | **0.7562** | **0.5030** | **0.7823** |
+| **S3c** | Driver A (Roundabouts + Turns) | 37,183 | 62.0 min | **+0.9490** | +0.0140* | +0.0940* | **60.89%** | **92.37%** | **0.7340** | **72.03%** | **0.7993** | **0.4781** | **0.7540** |
+| **M** | Driver B (Urban, 3hr Drive) | 105,974 | 176.6 min | **+0.6363** | +0.1794 | **+0.4978** | **76.65%** | 63.28% | **0.6933** | **59.16%** | **0.6746** | **0.3522** | **0.6038** |
+
+### Table 5.2: Synchronized Reference Benchmarks (Lag & Clock-Drift Corrected)
+*Evaluates underlying physical sensor alignment and model fidelity when logging time-offsets are synchronized:*
+| Trip | Description | Samples | Duration | Yaw $r$ | Long Accel $r$ (smooth) | Lat Accel $r$ (smooth) | ZUPT Prec. | ZUPT Recall | ZUPT F1 | Maneuver Acc. | Straight F1 | Gentle Curve F1 | Sharp Turn F1 |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **S1** | Driver A (Lag +0.2s) | 51,744 | 86.2 min | **+0.9482** | **+0.5628** | **+0.4993** | **91.36%** | 71.80% | **0.8041** | **65.90%** | **0.6664** | **0.5021** | **0.7631** |
+| **S3c** | Driver A (Lag +0.5s) | 37,178 | 62.0 min | **+0.9959** | +0.0178* | +0.1035* | **61.17%** | **92.66%** | **0.7369** | **77.20%** | **0.8283** | **0.5954** | **0.8164** |
+| **M** | Driver B (Piecewise Drift-Corr) | 105,912 | 176.6 min | **+0.8812** | **+0.3901** | **+0.7233** | **83.48%** | 68.77% | **0.7541** | **70.64%** | **0.7562** | **0.5030** | **0.7823** |
+
+*\*Footnote on Trip S3c: Full-trip static acceleration correlation reflects cradle swiveling across 6 distinct azimuthal angles mid-drive; individual stable chunks correlate strongly at $r = +0.624$ to $+0.713$.*
 
 ---
 
 ## 6. Forward & Lateral Acceleration Investigation & Multi-Trip Generalization
 
 ### 1. Boresight Angle ($\psi$) Generalization Across Trips:
-To verify whether the fixed boresight angle ($\psi = 316.0^\circ$) was overfit to Trip S1 or genuinely physically valid across trips, we performed an independent 2D parameter sweep $(\psi \in [0^\circ, 360^\circ], \text{lag} \in [-5\text{s}, +5\text{s}])$ across all trips:
-- **Trip S1:** Independent per-trip optimization yields $\psi = \mathbf{317.0^\circ}$ (longitudinal $r = +0.5668$) and $\psi = \mathbf{319.0^\circ}$ (lateral $r = +0.5023$). The fixed angle $\psi = 316.0^\circ$ matches the physical mount to within **$1^\circ - 3^\circ$**!
+To verify whether the fixed boresight angle ($\psi = 316.0^\circ$) was overfit to Trip S1 or generally valid across trips, we performed an independent 2D parameter sweep $(\psi \in [0^\circ, 360^\circ], \text{lag} \in [-5\text{s}, +5\text{s}])$ across all trips:
+- **Trip S1:** Independent per-trip optimization yields $\psi = \mathbf{317.0^\circ}$ (longitudinal $r = +0.5668$) and $\psi = \mathbf{319.0^\circ}$ (lateral $r = +0.5023$). The fixed angle $\psi = 316.0^\circ$ matches the physical mount to within **$1^\circ - 3^\circ$**.
 - **Trip M (Lag-Aligned):** Independent per-trip optimization yields $\psi = \mathbf{337.0^\circ}$ (longitudinal $r = +0.4234$) and $\psi = \mathbf{326.0^\circ}$ (lateral $r = +0.7329$).
-  - When evaluated using the **global fixed $\psi = 316.0^\circ$**, Trip M achieves **$\text{Long } r = \mathbf{+0.3901}$** and **$\text{Lat } r = \mathbf{+0.7233}$** (dynamic maneuver events: $\text{Long } r = \mathbf{+0.4002}$, $\text{Lat } r = \mathbf{+0.7406}$).
-  - The delta between per-trip optimal and fixed angle on Trip M is negligible ($\Delta r < 0.033$), proving that the dashboard cradle orientation was consistent between different drivers and vehicles.
+  - Trip M exhibits a moderate $10^\circ - 21^\circ$ mounting offset relative to Trip S1, likely reflecting driver-specific cradle swivel adjustment.
+  - Despite this geometric variation, evaluating Trip M with the **global fixed $\psi = 316.0^\circ$** yields strong correlation (**$\text{Long } r = \mathbf{+0.3901}$**, **$\text{Lat } r = \mathbf{+0.7233}$**; dynamic events: $\text{Long } r = \mathbf{+0.4002}$, $\text{Lat } r = \mathbf{+0.7406}$).
+  - The delta between the per-trip tuned optimum and the fixed angle is small ($\Delta r \le 0.033$), demonstrating acceptable tolerance for small cradle deviations while reinforcing the need for initial calibration on live demo day.
 
 ### 2. Physical Root Cause for Trip S3c Acceleration Numbers:
 Why is S3c's full-trip static acceleration correlation near zero ($r = 0.0140$) despite its yaw rate correlation being exceptional ($r = \mathbf{+0.9490}$)?
@@ -157,7 +169,7 @@ Why is S3c's full-trip static acceleration correlation near zero ($r = 0.0140$) 
 - **Piecewise Cradle Reorientation:** When evaluated per stable segment, Trip S3c's accelerometer correlation is **$+0.624$ to $+0.713$**, confirming the sensor hardware and physical dynamics were functioning properly.
 
 ### 3. Impact of Lag Synchronization on Acceleration:
-- **Trip S1:** Constant $+0.2\text{s}$ to $+0.3\text{s}$ lag adjustment yields $\text{Long } r = \mathbf{+0.5667}$ and $\text{Lat } r = \mathbf{+0.5015}$ (Dynamic events: $r = \mathbf{+0.7760}$).
+- **Trip S1:** Constant $+0.2\text{s}$ lag adjustment yields $\text{Long } r = \mathbf{+0.5628}$ and $\text{Lat } r = \mathbf{+0.4993}$ (Dynamic events: $r = \mathbf{+0.7760}$).
 - **Trip M:** Piecewise lag alignment (correcting Android logging clock drift from $+0.9\text{s} \to +3.2\text{s}$) increases $\text{Long } r$ from $+0.1794 \to \mathbf{+0.3901}$ and $\text{Lat } r$ from $+0.4978 \to \mathbf{+0.7233}$.
 
 ---
@@ -170,7 +182,7 @@ Downstream modules (**AI Speed Estimator**, **Error-State EKF Fusion**, **Map-Ma
    - Smartphone linear accelerometers are susceptible to road vibrations and minor mounting angle variations. Downstream models should **not** rely on naive direct double-integration of $a_{\text{fwd}}$ for distance/speed during long outages.
    - The AI Speed Estimator should leverage IMU variance, GNSS Doppler ground truth, and the highly reliable vehicle yaw rate ($r > 0.93$) to constrain velocity.
 2. **`gentle_curve` Confidence Level:**
-   - While `sharp_turn` (F1 $\approx 0.74-0.78$) and `straight` (F1 $\approx 0.65-0.80$) are well-separated, `gentle_curve` remains the weakest class with F1 $\approx 0.47-0.50$.
+   - While `sharp_turn` (F1 $\approx 0.74-0.82$) and `straight` (F1 $\approx 0.65-0.83$) are well-separated, `gentle_curve` remains the weakest class with F1 $\approx 0.47-0.59$.
    - **Guidance for EKF / AI Model:** Downstream consumers should treat `gentle_curve` predictions with **lower confidence / broader covariance weights** than `sharp_turn` or `straight`.
 3. **Fixed Boresight Angle ($\psi = 316.0^\circ$):**
    - The transformation matrix $\mathbf{R}_{p \to v}$ uses a fixed boresight rotation angle $\psi = 316.0^\circ$ ($\approx -44.0^\circ$), calibrated for the IO-VNBD landscape dashboard cradle mount.
@@ -181,7 +193,22 @@ Downstream modules (**AI Speed Estimator**, **Error-State EKF Fusion**, **Map-Ma
 
 ---
 
-## 8. How to Run & Verify
+## 8. Future Work / Architecture Gap (Alignment Module v2)
+
+> [!IMPORTANT]
+> **Architecture Gap Flag for Alignment Subsystem v2:**
+> 
+> In the current v1 architecture, coordinate re-calibration relies primarily on detecting discontinuities in the estimated **gravity vector** (e.g., when the phone is picked up, tilted, or dropped).
+> 
+> **The Critical Gap:** As proven by **Trip S3c**, azimuthal / horizontal re-orientations (such as swiveling the phone in a ball-joint dashboard cradle or adjusting the horizontal viewing angle) rotate the phone purely around the local vertical axis $+Z_v$. This leaves the measured gravity vector completely unchanged ($g_z \approx 9.81\text{ m/s}^2, g_x \approx 0, g_y \approx 0$). Consequently, **horizontal cradle swiveling is 100% invisible to gravity-based re-calibration triggers**.
+> 
+> **Requirement for Alignment v2:** Whoever implements Alignment v2 must incorporate an **online yaw-boresight-drift detector** as an independent second re-calibration trigger:
+> 1. **Kinematic Centripetal Consistency:** Continuously compare estimated lateral acceleration against vehicle turn dynamics: $a_{\text{lat, expected}} = v_{\text{est}} \cdot \omega_{\text{yaw}}$. A sustained sign or scale divergence indicates azimuthal misalignment.
+> 2. **GNSS Track Heading vs IMU Yaw Integration:** During periods of valid GNSS availability ($v > 5\text{ m/s}$), compare the differential GNSS course vector with the integrated IMU heading to detect and correct horizontal boresight slips before entering GNSS blackout zones.
+
+---
+
+## 9. How to Run & Verify
 
 ### Environment Setup:
 ```bash
