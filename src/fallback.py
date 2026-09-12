@@ -14,8 +14,8 @@ class PhysicsFallbackDispatcher:
     """
     def __init__(
         self,
-        confidence_threshold: float = 0.35, # Trigger fallback if confidence is lower than this
-        max_variance_threshold: float = 4.0  # m²/s² max allowed variance
+        confidence_threshold: float = 0.25, # Trigger fallback if confidence is lower than this
+        max_variance_threshold: float = 16.0 # m²/s² max allowed variance
     ):
         self.confidence_threshold = confidence_threshold
         self.max_variance_threshold = max_variance_threshold

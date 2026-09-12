@@ -1,6 +1,6 @@
 """
-train_and_evaluate.py - Complete Training & Benchmark Suite for AI Speed Estimator.
-Trains a unified Random Forest speed regressor with uncertainty on S1 + M,
+train_and_evaluate.py - Complete Training, Diagnostic & Benchmark Suite for AI Speed Estimator.
+Trains a regularized Random Forest speed regressor with ensemble uncertainty on S1 + M,
 and evaluates across:
   1. Clean Unseen Validation Trip (Trip S2)
   2. Cradle-Swivel Edge-Case Trip (Trip S3c)
@@ -42,9 +42,9 @@ from src.model import SpeedEstimatorModel
 from src.fallback import PhysicsFallbackDispatcher
 from src.evaluator import evaluate_predictions, plot_speed_evaluation, SPEED_BUCKETS
 
-def load_and_preprocess_trip(s_path: str, v_path: str, trip_name: str, lag_correction: bool = False):
+def load_and_preprocess_trip(s_path: str, v_path: str, trip_name: str, lag_steps: int = 0, is_piecewise: bool = False):
     """
-    Loads raw phone and CAN ground truth, runs preprocessing alignment, and returns clean DataFrames.
+    Loads raw phone and CAN ground truth, runs preprocessing alignment, and applies time-lag alignment.
     """
     print(f"Loading & Preprocessing {trip_name}...")
     res = preprocess_trip(s_csv_path=s_path, v_csv_path=v_path)
@@ -55,7 +55,7 @@ def load_and_preprocess_trip(s_path: str, v_path: str, trip_name: str, lag_corre
     aligned_df = aligned_df.iloc[:n].copy()
     gt_df = gt_df.iloc[:n].copy()
 
-    if lag_correction and "M" in trip_name:
+    if is_piecewise and "M" in trip_name:
         # Piecewise lag alignment for Trip M (Android clock drift correction)
         segments = [(0, 42000, 9), (42000, 51000, 21), (51000, n, 32)]
         a_parts, g_parts = [], []
@@ -66,6 +66,17 @@ def load_and_preprocess_trip(s_path: str, v_path: str, trip_name: str, lag_corre
         aligned_df = pd.concat(a_parts, ignore_index=True)
         gt_df = pd.concat(g_parts, ignore_index=True)
         print(f"  Applied piecewise lag alignment to {trip_name}: N={len(aligned_df)}")
+    elif lag_steps > 0:
+        # Phone started after CAN -> trim head of CAN and tail of Phone
+        aligned_df = aligned_df.iloc[:-lag_steps].reset_index(drop=True)
+        gt_df = gt_df.iloc[lag_steps:].reset_index(drop=True)
+        print(f"  Applied lag alignment (+{lag_steps*0.1:.1f}s, +{lag_steps} steps) to {trip_name}: N={len(aligned_df)}")
+    elif lag_steps < 0:
+        # Phone started before CAN -> trim head of Phone and tail of CAN
+        trim = -lag_steps
+        aligned_df = aligned_df.iloc[trim:].reset_index(drop=True)
+        gt_df = gt_df.iloc[:-trim].reset_index(drop=True)
+        print(f"  Applied lag alignment ({lag_steps*0.1:.1f}s, {lag_steps} steps) to {trip_name}: N={len(aligned_df)}")
 
     return aligned_df, gt_df
 
@@ -74,62 +85,87 @@ def print_speed_distribution_summary(trips_dict: dict):
     Prints comparative summary of vehicle speed distributions across all trips
     to explicitly check for train/test distribution shifts.
     """
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 90)
     print("SPEED DISTRIBUTION AUDIT (TRAIN VS VALIDATION TRIPS)")
-    print("=" * 80)
+    print("=" * 90)
     print(f"{'Trip Name':<20} | {'Role':<12} | {'Samples':<8} | {'Mean (m/s)':<10} | {'Max (m/s)':<10} | {'Max (km/h)':<10} | {'% Stationary':<12}")
-    print("-" * 88)
+    print("-" * 98)
     
     for name, data in trips_dict.items():
         spd = data["gt_df"]["gt_speed_mps"].values
         stat_pct = (spd < 0.1).mean() * 100.0
         print(f"{name:<20} | {data['role']:<12} | {len(spd):<8d} | {spd.mean():<10.2f} | {spd.max():<10.2f} | {spd.max()*3.6:<10.1f} | {stat_pct:<12.1f}%")
 
+def print_vibration_correlation_audit(trips_dict: dict):
+    """
+    Prints vertical vibration vs speed correlation and distribution statistics across trips
+    to diagnose train/val generalization gaps and road surface sensitivity.
+    """
+    print("\n" + "=" * 90)
+    print("VERTICAL VIBRATION (aup_std) VS SPEED CORRELATION AUDIT")
+    print("=" * 90)
+    print(f"{'Trip Name':<20} | {'Role':<12} | {'r(aup_std, speed)':<18} | {'aup_std Mean':<12} | {'aup_std Std':<12} | {'Road Condition':<18}")
+    print("-" * 98)
+    
+    for name, data in trips_dict.items():
+        feat = data["features_df"]
+        spd = data["gt_speed_aligned"]
+        r_aup = np.corrcoef(feat["aup_std"], spd)[0, 1]
+        m_aup = feat["aup_std"].mean()
+        s_aup = feat["aup_std"].std()
+        road = "Smooth Asphalt" if m_aup < 0.45 else ("Mixed/Rough Urban" if m_aup < 0.55 else "Cobblestone/Severe")
+        print(f"{name:<20} | {data['role']:<12} | {r_aup:<18.4f} | {m_aup:<12.4f} | {s_aup:<12.4f} | {road:<18}")
+
 def main():
-    print("=" * 80)
+    print("=" * 90)
     print("AI SPEED ESTIMATOR — TRAINING & MULTI-TRIP VALIDATION SUITE")
-    print("=" * 80)
+    print("=" * 90)
 
     os.makedirs("models", exist_ok=True)
     os.makedirs("output", exist_ok=True)
     os.makedirs("plots", exist_ok=True)
 
-    # 1. Define Trip Paths
+    # 1. Define Trip Configurations with Verified Lag Alignment
     trip_configs = {
         "Trip S1": {
             "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/S-S1.csv"),
             "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/V-S1.csv"),
             "role": "TRAIN",
-            "lag_corr": False
+            "lag_steps": 43,
+            "is_piecewise": False
         },
         "Trip M": {
             "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/S-M.csv"),
             "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/V-M.csv"),
             "role": "TRAIN",
-            "lag_corr": True
+            "lag_steps": 0,
+            "is_piecewise": True
         },
         "Trip S2": {
             "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S2/S-S2.csv"),
             "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S2/V-S2.csv"),
             "role": "VAL (Clean)",
-            "lag_corr": False
+            "lag_steps": -41,
+            "is_piecewise": False
         },
         "Trip S3c": {
             "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/S-S3c.csv"),
             "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/V-S3c.csv"),
             "role": "VAL (Swivel)",
-            "lag_corr": False
+            "lag_steps": 42,
+            "is_piecewise": False
         }
     }
 
-    # 2. Ingest and Preprocess All Trips
+    # 2. Ingest and Preprocess All Trips with Lag Alignment
     trips_data = {}
     for name, cfg in trip_configs.items():
         aligned_df, gt_df = load_and_preprocess_trip(
             s_path=cfg["s_path"],
             v_path=cfg["v_path"],
             trip_name=name,
-            lag_correction=cfg["lag_corr"]
+            lag_steps=cfg["lag_steps"],
+            is_piecewise=cfg["is_piecewise"]
         )
         trips_data[name] = {
             "aligned_df": aligned_df,
@@ -144,9 +180,9 @@ def main():
     window_size = 20
     step_size = 1
 
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 90)
     print(f"EXTRACTING FEATURES OVER {window_size*0.1:.1f}s SLIDING WINDOWS (2.0s @ 10Hz, hop=0.1s)")
-    print("=" * 80)
+    print("=" * 90)
 
     for name, data in trips_data.items():
         feat_df, end_idx = extract_window_features(
@@ -159,39 +195,44 @@ def main():
         data["gt_speed_aligned"] = data["gt_df"]["gt_speed_mps"].values[end_idx]
         print(f"  {name:<10}: Extracted {len(feat_df)} windows ({len(feat_df.columns)} features)")
 
-    # 5. Build Training Matrix (Trip S1 + Trip M)
+    # 5. Vibration vs Speed Correlation Audit
+    print_vibration_correlation_audit(trips_data)
+
+    # 6. Build Training Matrix (Trip S1 + Trip M)
     X_train = pd.concat([trips_data["Trip S1"]["features_df"], trips_data["Trip M"]["features_df"]], ignore_index=True)
     y_train = np.concatenate([trips_data["Trip S1"]["gt_speed_aligned"], trips_data["Trip M"]["gt_speed_aligned"]])
     print(f"\nTraining Dataset (S1 + M): {len(X_train)} samples across 2 drivers ({len(X_train)*0.1/3600:.2f} hours)")
 
-    # 6. Train Unified AI Speed Estimator Model
-    print("\n" + "=" * 80)
-    print("TRAINING UNIFIED SPEED ESTIMATOR (RandomForest with Ensemble Uncertainty)")
-    print("=" * 80)
+    # 7. Train Regularized AI Speed Estimator Model
+    print("\n" + "=" * 90)
+    print("TRAINING PRODUCTION SPEED ESTIMATOR (RandomForest with max_depth=16, min_samples_leaf=2, max_features=0.5)")
+    print("=" * 90)
     model = SpeedEstimatorModel(
         n_estimators=100,
-        max_depth=14,
-        min_samples_leaf=4,
+        max_depth=16,
+        min_samples_leaf=2,
+        max_features=0.5,
         random_state=42
     )
     model.fit(X_train, y_train)
     model_path = "models/speed_estimator_rf.pkl"
     model.save(model_path)
     print(f"Model successfully trained and saved to {model_path}")
+    print(f"  Out-of-Bag (OOB) R² Score: {model.oob_score_:.4f}")
 
     # Feature importances
     importances = model.model.feature_importances_
     feat_imp = pd.Series(importances, index=model.feature_names).sort_values(ascending=False)
-    print("\nTop 10 Most Important Features:")
+    print("\nTop 10 Most Important Features (Balanced Feature Subsampling):")
     for f, imp in feat_imp.head(10).items():
         print(f"  {f:<22}: {imp*100:.2f}%")
 
-    # 7. Evaluate Model Across All Trips (with Fallback Dispatcher)
-    print("\n" + "=" * 80)
+    # 8. Evaluate Model Across All Trips (with Fallback Dispatcher)
+    print("\n" + "=" * 90)
     print("MULTI-TRIP BENCHMARK EVALUATION (MAE, RMSE, Error Breakdowns & Speed Buckets)")
-    print("=" * 80)
+    print("=" * 90)
 
-    dispatcher = PhysicsFallbackDispatcher(confidence_threshold=0.35, max_variance_threshold=4.0)
+    dispatcher = PhysicsFallbackDispatcher(confidence_threshold=0.25, max_variance_threshold=16.0)
     eval_summaries = []
     bucket_all_results = {}
 
@@ -234,30 +275,32 @@ def main():
         print(f"Saved plot -> {plot_path}")
 
         ov = eval_res["overall"]
+        sb = eval_res["source_breakdown"]
         eval_summaries.append({
             "Trip": name,
             "Role": data["role"],
             "Samples": ov["count"],
-            "MAE (m/s)": ov["mae"],
-            "RMSE (m/s)": ov["rmse"],
+            "Overall MAE": ov["mae"],
+            "Overall RMSE": ov["rmse"],
             "Pearson r": ov["pearson_r"],
-            "Max Err": ov["max_error"],
-            "Bias": ov["bias"],
-            "ML Use %": eval_res["ml_usage_pct"]
+            "ML MAE": sb["ml_model"]["mae"],
+            "ML Use %": eval_res["ml_usage_pct"],
+            "Fallback MAE": sb["physics_fallback"]["mae"] if sb["physics_fallback"]["count"] > 0 else "N/A",
+            "Bias": ov["bias"]
         })
         bucket_all_results[name] = eval_res["speed_bucket_breakdown"]
 
-    # 8. Print Overall Summary Table
-    print("\n" + "=" * 90)
-    print("CONSOLIDATED MULTI-TRIP SPEED ESTIMATION BENCHMARKS")
-    print("=" * 90)
+    # 9. Print Overall Summary Table with ML vs Fallback Breakdown
+    print("\n" + "=" * 105)
+    print("CONSOLIDATED MULTI-TRIP SPEED ESTIMATION BENCHMARKS (ML-ACTIVE VS FALLBACK-ACTIVE)")
+    print("=" * 105)
     summary_df = pd.DataFrame(eval_summaries)
     print(summary_df.to_string(index=False))
 
-    # 9. Print Maneuver Breakdown Table
-    print("\n" + "=" * 90)
+    # 10. Print Maneuver Breakdown Table
+    print("\n" + "=" * 105)
     print("PERFORMANCE BREAKDOWN BY MANEUVER STATE (MAE in m/s)")
-    print("=" * 90)
+    print("=" * 105)
     maneuver_rows = []
     for name, data in trips_data.items():
         mb = data["eval_results"]["maneuver_breakdown"]
@@ -267,10 +310,10 @@ def main():
         maneuver_rows.append(row)
     print(pd.DataFrame(maneuver_rows).to_string(index=False))
 
-    # 10. Print Speed Bucket Breakdown Table (Train/Test Distribution Shift)
-    print("\n" + "=" * 90)
+    # 11. Print Speed Bucket Breakdown Table (Train/Test Distribution Shift)
+    print("\n" + "=" * 105)
     print("PERFORMANCE BREAKDOWN BY SPEED BUCKET (MAE in m/s — Distribution Shift Check)")
-    print("=" * 90)
+    print("=" * 105)
     bucket_rows = []
     for name, data in trips_data.items():
         sb = data["eval_results"]["speed_bucket_breakdown"]
@@ -281,9 +324,9 @@ def main():
         bucket_rows.append(row)
     print(pd.DataFrame(bucket_rows).to_string(index=False))
 
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 90)
     print("ALL RUNS AND BENCHMARKS COMPLETED SUCCESSFULLY!")
-    print("=" * 80)
+    print("=" * 90)
 
 if __name__ == "__main__":
     main()

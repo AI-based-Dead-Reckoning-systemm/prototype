@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 
+from joblib import Parallel, delayed
+
 class SpeedEstimatorModel:
     """
     Unified AI Speed Estimator for Smartphone-Based Dead Reckoning.
@@ -18,24 +20,29 @@ class SpeedEstimatorModel:
     def __init__(
         self,
         n_estimators: int = 100,
-        max_depth: int = 14,
-        min_samples_leaf: int = 4,
+        max_depth: int = 16,
+        min_samples_leaf: int = 2,
+        max_features: str | float = 0.5,
         random_state: int = 42
     ):
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
         self.random_state = random_state
         
         self.model = RandomForestRegressor(
             n_estimators=self.n_estimators,
             max_depth=self.max_depth,
             min_samples_leaf=self.min_samples_leaf,
+            max_features=self.max_features,
             random_state=self.random_state,
-            n_jobs=-1
+            n_jobs=-1,
+            oob_score=True
         )
         self.feature_names = None
         self.is_trained = False
+        self.oob_score_ = None
 
     def fit(self, X: pd.DataFrame, y: np.ndarray):
         """
@@ -44,6 +51,7 @@ class SpeedEstimatorModel:
         self.feature_names = list(X.columns)
         self.model.fit(X.values, y)
         self.is_trained = True
+        self.oob_score_ = getattr(self.model, "oob_score_", None)
         return self
 
     def predict_raw(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -58,9 +66,12 @@ class SpeedEstimatorModel:
             raise RuntimeError("Model is not trained yet. Call fit() or load() first.")
 
         X_mat = X[self.feature_names].values
-        # Predict with all individual trees in parallel
-        # Shape: (n_estimators, n_samples)
-        all_tree_preds = np.array([tree.predict(X_mat) for tree in self.model.estimators_])
+        # Predict with all individual trees in parallel across CPU cores
+        all_tree_preds = np.array(
+            Parallel(n_jobs=-1, prefer="threads")(
+                delayed(tree.predict)(X_mat) for tree in self.model.estimators_
+            )
+        )
         
         pred_mean = np.mean(all_tree_preds, axis=0)
         pred_var = np.var(all_tree_preds, axis=0) # Ensemble variance
@@ -132,25 +143,30 @@ class SpeedEstimatorModel:
         return results_df
 
     def save(self, filepath: str):
-        """Saves model to disk."""
+        """Saves model to disk using joblib with compression."""
+        import joblib
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "wb") as f:
-            pickle.dump({
-                "model": self.model,
-                "feature_names": self.feature_names,
-                "params": {
-                    "n_estimators": self.n_estimators,
-                    "max_depth": self.max_depth,
-                    "min_samples_leaf": self.min_samples_leaf,
-                    "random_state": self.random_state
-                }
-            }, f)
+        joblib.dump({
+            "model": self.model,
+            "feature_names": self.feature_names,
+            "params": {
+                "n_estimators": self.n_estimators,
+                "max_depth": self.max_depth,
+                "min_samples_leaf": self.min_samples_leaf,
+                "max_features": self.max_features,
+                "random_state": self.random_state
+            }
+        }, filepath, compress=3)
 
     @classmethod
     def load(cls, filepath: str) -> "SpeedEstimatorModel":
-        """Loads model from disk."""
-        with open(filepath, "rb") as f:
-            data = pickle.load(f)
+        """Loads model from disk using joblib or pickle."""
+        import joblib
+        try:
+            data = joblib.load(filepath)
+        except Exception:
+            with open(filepath, "rb") as f:
+                data = pickle.load(f)
         instance = cls(**data["params"])
         instance.model = data["model"]
         instance.feature_names = data["feature_names"]

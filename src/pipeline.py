@@ -45,7 +45,7 @@ def process_speed_estimation(
     )
 
     # 3. Fallback Dispatching
-    dispatcher = PhysicsFallbackDispatcher(confidence_threshold=0.35, max_variance_threshold=4.0)
+    dispatcher = PhysicsFallbackDispatcher(confidence_threshold=0.25, max_variance_threshold=16.0)
     final_estimates_df = dispatcher.apply_fallback(
         model_pred_df=model_preds_df,
         aligned_df=aligned_df,

@@ -200,4 +200,12 @@ def extract_window_features(
         rows.append(feat)
 
     features_df = pd.DataFrame(rows)
+
+    # 7. Orientation-Invariant Road-Roughness Rolling Baseline Normalization (20-second horizon @ 10Hz)
+    # Uses |a| magnitude standard deviation to normalize cross-trip pavement roughness shifts
+    # while remaining completely immune to azimuthal cradle swivels and mounting tilt changes
+    roll_min_amag = features_df["amag_std"].rolling(window=200, min_periods=30).min().bfill().ffill()
+    features_df["amag_std_rel_road"] = features_df["amag_std"] - roll_min_amag
+    features_df["amag_std_ratio_road"] = features_df["amag_std"] / np.maximum(roll_min_amag, 0.05)
+
     return features_df, np.array(end_indices)

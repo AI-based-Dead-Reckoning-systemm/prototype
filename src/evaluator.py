@@ -86,7 +86,15 @@ def evaluate_predictions(
         "moving_zupt_inactive": compute_metrics(y_true[zupt_false_mask], y_pred[zupt_false_mask])
     }
 
-    # 4. Breakdown by Speed Bucket (Train/Test distribution shift check)
+    # 4. Breakdown by Active Source (ML Model vs Physics Fallback)
+    ml_mask = (active_source == "ml_model")
+    fb_mask = (active_source == "physics_fallback")
+    source_breakdown = {
+        "ml_model": compute_metrics(y_true[ml_mask], y_pred[ml_mask]),
+        "physics_fallback": compute_metrics(y_true[fb_mask], y_pred[fb_mask])
+    }
+
+    # 5. Breakdown by Speed Bucket (Train/Test distribution shift check)
     bucket_breakdown = {}
     for label, v_min, v_max in SPEED_BUCKETS:
         mask = (y_true >= v_min) & (y_true < v_max)
@@ -99,6 +107,7 @@ def evaluate_predictions(
         "trip_name": trip_name,
         "overall": overall,
         "ml_usage_pct": round(ml_usage_pct, 2),
+        "source_breakdown": source_breakdown,
         "maneuver_breakdown": maneuver_breakdown,
         "zupt_breakdown": zupt_breakdown,
         "speed_bucket_breakdown": bucket_breakdown

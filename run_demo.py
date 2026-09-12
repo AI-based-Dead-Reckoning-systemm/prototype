@@ -59,7 +59,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input",
         type=str,
-        default="../sih_idr_preprocessing/output/AlignedSample_S1.csv",
+        default=os.path.join(CURRENT_DIR, "..", "sih_idr_preprocessing", "output", "AlignedSample_S1.csv"),
         help="Path to input AlignedSample CSV (from Preprocessing module)"
     )
     parser.add_argument(
