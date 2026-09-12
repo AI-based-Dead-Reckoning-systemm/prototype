@@ -115,10 +115,12 @@ def validate_all():
     d = sample_fused.to_dict()
     reloaded = IDRFusedEstimate.from_csv_row(d)
     assert reloaded == sample_fused
-    print(f"  [PASS] IDRFusedEstimate (EKF handoff contract) serialization roundtrip verified.")
+    print(f"  [PASS] IDRFusedEstimate: Schema self-test only (roundtrip serialization verified; no EKF implementation exists yet to validate against).")
 
     print("=" * 80)
-    print("ALL 4 CONTRACTS PASSED COMPLETE MONOREPO INTEGRATION VALIDATION!")
+    print("CONTRACT VALIDATION COMPLETE:")
+    print("  - Contracts 1-3 (RawSample, AlignedSample, SpeedEstimate): VALIDATED against committed CSV outputs")
+    print("  - Contract 4 (IDRFusedEstimate): SCHEMA SELF-TEST ONLY (no EKF implementation exists yet)")
     print("=" * 80)
 
 if __name__ == "__main__":

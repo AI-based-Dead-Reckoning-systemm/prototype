@@ -98,7 +98,7 @@ All data crossing module boundaries is governed by canonical Python dataclasses 
 | **`RawSample`** | `preprocessing/` | Preprocessing, Logs | **Validated** (5 Trips) | Separate named tri-axial IMU/Mag/Gravity fields; `gps_` prefix matching hardware logs. |
 | **`AlignedSample`** | `preprocessing/` | `speed_estimation/`, `ekf_fusion/` | **Validated** (4 Trips) | 5-class maneuver taxonomy (`gentle_curve` flagged as lower confidence $F_1 \approx 0.47-0.50$); vehicle-frame named accelerations (`accel_vehicle_fwd`, `lat`, `up`). |
 | **`SpeedEstimate`** | `speed_estimation/` | `ekf_fusion/` | **Validated** (5 Trips) | Continuous `speed_variance` $\sigma^2$ for filter measurement noise $R_k = \max(\sigma^2, 0.25) + 0.50$; continuous `speed_confidence`; `active_source` tag. |
-| **`IDRFusedEstimate`**| `ekf_fusion/` | UI, Trajectory Engine | **Proposed Spec** | Soft continuous GNSS trust weight ($\gamma_k \in [0.0, 1.0]$); $1\sigma$ state uncertainties (`pos_uncertainty_m`, `vel_uncertainty_mps`, `heading_uncertainty_deg`). |
+| **`IDRFusedEstimate`**| `ekf_fusion/` | UI, Trajectory Engine | **Schema self-test only**<br>*(no EKF implementation exists yet to validate against)* | Soft continuous GNSS trust weight ($\gamma_k \in [0.0, 1.0]$); $1\sigma$ state uncertainties (`pos_uncertainty_m`, `vel_uncertainty_mps`, `heading_uncertainty_deg`). |
 | **`GroundTruthSample`**| Dataset Loader | Evaluation Suite | **Validated** | Reference CAN-bus vehicle speed, steering, yaw rate, and longitudinal/lateral accelerations. |
 
 ---
