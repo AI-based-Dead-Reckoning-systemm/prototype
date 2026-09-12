@@ -199,5 +199,5 @@ Outputs trained model `models/speed_estimator_rf.pkl`, benchmark tables, output 
 
 ### 2. Run Standalone Inference Demo on Any Trip:
 ```bash
-python run_demo.py --input ../sih_idr_preprocessing/output/AlignedSample_S1.csv --output output/SpeedEstimates_demo.csv
+python run_demo.py --input ../preprocessing/output/AlignedSample_S1.csv --output output/SpeedEstimates_demo.csv
 ```

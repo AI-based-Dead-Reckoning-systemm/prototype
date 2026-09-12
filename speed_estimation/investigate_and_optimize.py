@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from scipy.fft import rfft, rfftfreq
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-UPSTREAM_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "sih_idr_preprocessing"))
+UPSTREAM_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "preprocessing"))
 
 if UPSTREAM_DIR not in sys.path:
     sys.path.insert(0, UPSTREAM_DIR)

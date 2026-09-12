@@ -4,14 +4,13 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 
-UPSTREAM_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_preprocessing"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+UPSTREAM_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "preprocessing"))
 sys.path.insert(0, UPSTREAM_DIR)
+sys.path.insert(1, CURRENT_DIR)
 from src.loader import load_ground_truth_can
 from src.pipeline import process_trip
 from src.features import extract_window_features
-
-CURRENT_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_speed_estimation"
-sys.path.insert(0, CURRENT_DIR)
 from src.model import SpeedEstimatorModel
 from src.fallback import PhysicsFallbackDispatcher
 from src.evaluator import evaluate_predictions

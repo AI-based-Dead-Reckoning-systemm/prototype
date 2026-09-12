@@ -59,19 +59,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input",
         type=str,
-        default=os.path.join(CURRENT_DIR, "..", "sih_idr_preprocessing", "output", "AlignedSample_S1.csv"),
+        default=os.path.join(CURRENT_DIR, "..", "preprocessing", "output", "AlignedSample_S1.csv"),
         help="Path to input AlignedSample CSV (from Preprocessing module)"
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="output/SpeedEstimates_demo.csv",
+        default=os.path.join(CURRENT_DIR, "output", "SpeedEstimates_demo.csv"),
         help="Path to save output SpeedEstimates CSV"
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="models/speed_estimator_rf.pkl",
+        default=os.path.join(CURRENT_DIR, "models", "speed_estimator_rf.pkl"),
         help="Path to trained speed estimator model pickle"
     )
     args = parser.parse_args()

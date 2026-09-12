@@ -4,7 +4,19 @@ run_demo.py - Comprehensive Multi-Trip Runner & Benchmark Validator for SIH IDR 
 
 import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+sys.path.append(os.path.join(CURRENT_DIR, "src"))
+
+def resolve_data_path(rel_path: str) -> str:
+    cand1 = os.path.join(ROOT_DIR, rel_path)
+    if os.path.exists(cand1):
+        return cand1
+    cand2 = os.path.join(CURRENT_DIR, rel_path)
+    if os.path.exists(cand2):
+        return cand2
+    return cand1
 
 import matplotlib
 matplotlib.use("Agg")
@@ -48,9 +60,11 @@ def characterize_noise_floor(filepath: str):
     print(f"  ||Gyro|| Norm: mean = {gyro_norm.mean():.4f}, std = {gyro_norm.std():.4f} rad/s")
     print(f"  0.5s Moving Variance (95th-percentile): {gyro_var_05s.quantile(0.95):.6f} rad²/s²")
 
-    os.makedirs("output", exist_ok=True)
-    raw.to_csv("output/RawSample_Vw15_Stationary.csv", index=False)
-    print("\nSaved output/RawSample_Vw15_Stationary.csv")
+    out_dir = os.path.join(CURRENT_DIR, "output")
+    os.makedirs(out_dir, exist_ok=True)
+    out_file = os.path.join(out_dir, "RawSample_Vw15_Stationary.csv")
+    raw.to_csv(out_file, index=False)
+    print(f"\nSaved {out_file}")
 
     return {
         "acc_std": acc_norm.std(),
@@ -101,7 +115,8 @@ def check_trip_drift(s_p, v_p, trip_name, window_sec=600):
 
 
 def generate_validation_plots(raw_df, aligned_df, gt_df, trip_name="S1"):
-    os.makedirs("plots", exist_ok=True)
+    plots_dir = os.path.join(CURRENT_DIR, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
     n_plot = min(3000, len(aligned_df)) # First 300 seconds
     t = aligned_df["timestamp_s"].values[:n_plot]
     
@@ -134,7 +149,7 @@ def generate_validation_plots(raw_df, aligned_df, gt_df, trip_name="S1"):
     axes[2].legend(loc="upper right")
 
     plt.tight_layout()
-    plt.savefig(f"plots/01_zupt_vs_ground_truth.png", dpi=200)
+    plt.savefig(os.path.join(plots_dir, "01_zupt_vs_ground_truth.png"), dpi=200)
     plt.close()
 
     # Plot 2: Vehicle-Frame Yaw Rate and Accelerations vs CAN GT
@@ -172,7 +187,7 @@ def generate_validation_plots(raw_df, aligned_df, gt_df, trip_name="S1"):
     axes[2].legend(loc="upper right")
 
     plt.tight_layout()
-    plt.savefig(f"plots/02_vehicle_frame_alignment_correlation.png", dpi=200)
+    plt.savefig(os.path.join(plots_dir, "02_vehicle_frame_alignment_correlation.png"), dpi=200)
     plt.close()
 
     # Plot 3: Maneuver Classification vs CAN Steering & Yaw
@@ -204,9 +219,9 @@ def generate_validation_plots(raw_df, aligned_df, gt_df, trip_name="S1"):
     axes[2].legend(loc="upper right")
 
     plt.tight_layout()
-    plt.savefig(f"plots/03_maneuver_classification_trajectory.png", dpi=200)
+    plt.savefig(os.path.join(plots_dir, "03_maneuver_classification_trajectory.png"), dpi=200)
     plt.close()
-    print(f"Generated validation plots in plots/")
+    print(f"Generated validation plots in {plots_dir}/")
 
 
 def main():
@@ -214,8 +229,11 @@ def main():
     print("SIH IDR SENSING & PREPROCESSING PIPELINE — BENCHMARK VALIDATOR")
     print("=" * 75)
 
+    out_dir = os.path.join(CURRENT_DIR, "output")
+    os.makedirs(out_dir, exist_ok=True)
+
     # 1. Stationary Noise Floor Characterization
-    stat_file = "data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/S-Dataset/S-Vw15.csv"
+    stat_file = resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/S-Dataset/S-Vw15.csv")
     characterize_noise_floor(stat_file)
 
     # 2. Clock Drift Sanity Checks for S1 & S3c
@@ -223,13 +241,13 @@ def main():
     print("TASK 2: CLOCK DRIFT SANITY CHECKS (Trip S1 & S3c)")
     print("=" * 75)
     check_trip_drift(
-        "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/S-S1.csv",
-        "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/V-S1.csv",
+        resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/S-S1.csv"),
+        resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S1/V-S1.csv"),
         "Trip S1"
     )
     check_trip_drift(
-        "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/S-S3c.csv",
-        "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/V-S3c.csv",
+        resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/S-S3c.csv"),
+        resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/V-S3c.csv"),
         "Trip S3c"
     )
 
@@ -237,24 +255,24 @@ def main():
     test_trips = [
         {
             "name": "Trip S1 (Driver A — City & Highway)",
-            "s_path": "data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/S-Dataset/S-S1.csv",
-            "v_path": "data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/V-Dataset/V-S1.csv",
-            "raw_out": "output/RawSample_S1.csv",
-            "aligned_out": "output/AlignedSample_S1.csv"
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/S-Dataset/S-S1.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Uncategorised IOVNB Dataset/V-Dataset/V-S1.csv"),
+            "raw_out": os.path.join(out_dir, "RawSample_S1.csv"),
+            "aligned_out": os.path.join(out_dir, "AlignedSample_S1.csv")
         },
         {
             "name": "Trip S3c (Driver A — Roundabouts & Turns)",
-            "s_path": "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/S-S3c.csv",
-            "v_path": "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/V-S3c.csv",
-            "raw_out": "output/RawSample_S3c.csv",
-            "aligned_out": "output/AlignedSample_S3c.csv"
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/S-S3c.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3c/V-S3c.csv"),
+            "raw_out": os.path.join(out_dir, "RawSample_S3c.csv"),
+            "aligned_out": os.path.join(out_dir, "AlignedSample_S3c.csv")
         },
         {
             "name": "Trip M (Driver B — Urban Route)",
-            "s_path": "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/S-M.csv",
-            "v_path": "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/V-M.csv",
-            "raw_out": "output/RawSample_M.csv",
-            "aligned_out": "output/AlignedSample_M.csv"
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/S-M.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/M (Driver B)/V-M.csv"),
+            "raw_out": os.path.join(out_dir, "RawSample_M.csv"),
+            "aligned_out": os.path.join(out_dir, "AlignedSample_M.csv")
         }
     ]
 

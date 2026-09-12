@@ -13,8 +13,18 @@ import importlib.util
 import numpy as np
 import pandas as pd
 
-UPSTREAM_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_preprocessing"
-CURRENT_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_speed_estimation"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+UPSTREAM_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "preprocessing"))
+
+def resolve_data_path(rel_path: str) -> str:
+    cand1 = os.path.join(ROOT_DIR, rel_path)
+    if os.path.exists(cand1):
+        return cand1
+    cand2 = os.path.join(UPSTREAM_DIR, rel_path)
+    if os.path.exists(cand2):
+        return cand2
+    return cand1
 
 if UPSTREAM_DIR not in sys.path:
     sys.path.insert(0, UPSTREAM_DIR)
@@ -111,30 +121,31 @@ def evaluate_blind_trip(s_path, v_path, trip_name, model, dispatcher):
     }
 
 def main():
-    print("Loading production model from models/speed_estimator_rf.pkl...")
-    model = SpeedEstimatorModel.load("models/speed_estimator_rf.pkl")
+    model_path = os.path.join(CURRENT_DIR, "models", "speed_estimator_rf.pkl")
+    print(f"Loading production model from {model_path}...")
+    model = SpeedEstimatorModel.load(model_path)
     dispatcher = PhysicsFallbackDispatcher(confidence_threshold=0.25, max_variance_threshold=16.0)
     
     blind_trips = [
         {
             "name": "Trip S4 (Held-out Clean)",
-            "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S4/S-S4.csv"),
-            "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S4/V-S4.csv")
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S4/S-S4.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S4/V-S4.csv")
         },
         {
             "name": "Trip S3a (Held-out)",
-            "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3a/S-S3a.csv"),
-            "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3a/V-S3a.csv")
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3a/S-S3a.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3a/V-S3a.csv")
         },
         {
             "name": "Trip S3b (Held-out)",
-            "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3b/S-S3b.csv"),
-            "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3b/V-S3b.csv")
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3b/S-S3b.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/S (Driver A)/S3b/V-S3b.csv")
         },
         {
             "name": "Trip Vfa01 (Held-out Driver E)",
-            "s_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/Vf (Driver E)/V-Vfa01/S-Vfa01.csv"),
-            "v_path": os.path.join(UPSTREAM_DIR, "data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/Vf (Driver E)/V-Vfa01/V-Vfa01.csv")
+            "s_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/Vf (Driver E)/V-Vfa01/S-Vfa01.csv"),
+            "v_path": resolve_data_path("data/IO-VNBD/Synchronised V abd S datasets/Categorised IOVNB Dataset/Vf (Driver E)/V-Vfa01/V-Vfa01.csv")
         }
     ]
     

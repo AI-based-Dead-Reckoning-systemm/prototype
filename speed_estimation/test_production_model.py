@@ -9,21 +9,31 @@ import sys
 import numpy as np
 import pandas as pd
 
-UPSTREAM_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_preprocessing"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+UPSTREAM_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "preprocessing"))
 sys.path.insert(0, UPSTREAM_DIR)
+sys.path.insert(1, CURRENT_DIR)
+
+def resolve_data_path(rel_path: str) -> str:
+    cand1 = os.path.join(ROOT_DIR, rel_path)
+    if os.path.exists(cand1):
+        return cand1
+    cand2 = os.path.join(UPSTREAM_DIR, rel_path)
+    if os.path.exists(cand2):
+        return cand2
+    return cand1
+
+from src.model import SpeedEstimatorModel
+from src.fallback import PhysicsFallbackDispatcher
+from src.evaluator import evaluate_predictions, SPEED_BUCKETS
 from src.loader import load_ground_truth_can
 from src.pipeline import process_trip
 from src.features import extract_window_features
 
-CURRENT_DIR = "/home/kavya-singla/.gemini/antigravity-ide/scratch/sih_idr_speed_estimation"
-sys.path.insert(0, CURRENT_DIR)
-from src.model import SpeedEstimatorModel
-from src.fallback import PhysicsFallbackDispatcher
-from src.evaluator import evaluate_predictions, SPEED_BUCKETS
-
 def load_trip(s_rel, v_rel, lag=0, is_m=False):
-    s_p = os.path.join(UPSTREAM_DIR, s_rel)
-    v_p = os.path.join(UPSTREAM_DIR, v_rel)
+    s_p = resolve_data_path(s_rel)
+    v_p = resolve_data_path(v_rel)
     res = process_trip(s_p, v_p)
     aligned = res["aligned_sample"]
     gt = load_ground_truth_can(v_p)
