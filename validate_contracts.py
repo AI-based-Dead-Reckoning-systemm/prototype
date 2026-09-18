@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 
 # Import canonical schemas directly from repo root
-from schemas import RawSample, AlignedSample, SpeedEstimate, IDRFusedEstimate, GroundTruthSample
+from common.schemas import RawSample, AlignedSample, SpeedEstimate, IDRFusedEstimate, GroundTruthSample
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 

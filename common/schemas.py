@@ -258,6 +258,7 @@ class SpeedEstimate:
     active_source: str          # Diagnostic source tag: 'ml_model' or 'physics_fallback'
     zupt_flag: bool             # Stationary flag (True = zero velocity lock)
     maneuver_state: str         # Maneuver classification context tag
+    outage_risk: float          # GNSS outage risk probability [0.0, 1.0]
 
     @classmethod
     def from_csv_row(cls, row: Union[Dict[str, Any], Any]) -> "SpeedEstimate":
@@ -271,6 +272,7 @@ class SpeedEstimate:
             active_source=_parse_str(get("active_source"), default="ml_model"),
             zupt_flag=_parse_bool(get("zupt_flag")),
             maneuver_state=_parse_str(get("maneuver_state"), default="straight"),
+            outage_risk=_parse_float(get("outage_risk"), default=0.0),
         )
 
     def to_dict(self) -> Dict[str, Any]:

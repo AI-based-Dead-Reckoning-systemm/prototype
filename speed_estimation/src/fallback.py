@@ -42,6 +42,22 @@ class PhysicsFallbackDispatcher:
         zupt = aligned_df["zupt_flag"].values[window_end_indices]
         maneuver = aligned_df["maneuver_state"].values[window_end_indices]
         timestamps = aligned_df["timestamp_s"].values[window_end_indices]
+        gps_sat = aligned_df["gps_satellites"].values[window_end_indices]
+        gps_acc = aligned_df["gps_accuracy_m"].values[window_end_indices]
+        gps_lat = aligned_df["gps_lat"].values[window_end_indices]
+
+        # Calculate raw outage risk flag
+        raw_outage = np.zeros(n, dtype=np.float64)
+        for i in range(n):
+            if gps_sat[i] < 4 or gps_acc[i] > 15.0 or np.isnan(gps_lat[i]):
+                raw_outage[i] = 1.0
+        
+        # Smooth with rolling average (1.5s window at 10Hz)
+        window_len = 15
+        if n > 0:
+            outage_risk = pd.Series(raw_outage).rolling(window=window_len, min_periods=1).mean().values
+        else:
+            outage_risk = raw_outage
 
         final_speed = np.zeros(n, dtype=np.float64)
         final_var = np.zeros(n, dtype=np.float64)
@@ -82,7 +98,8 @@ class PhysicsFallbackDispatcher:
             "speed_confidence": np.round(final_conf, 3),
             "active_source": active_source,
             "zupt_flag": zupt,
-            "maneuver_state": maneuver
+            "maneuver_state": maneuver,
+            "outage_risk": np.round(outage_risk, 3)
         })
 
         return output_df
